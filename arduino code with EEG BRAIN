@@ -1,0 +1,91 @@
+
+#include <Arduino.h>
+#include <DFRobotDFPlayerMini.h>
+
+// DFPlayer Mini serial connection
+#define DFPLAYER_RX 16  // ESP32 receives from DFPlayer TX
+#define DFPLAYER_TX 17  // ESP32 transmits to DFPlayer RX
+
+// Message buttons
+#define WATER_BUTTON 25
+#define FOOD_BUTTON 26
+#define HELP_BUTTON 27
+#define PAIN_BUTTON 32
+
+HardwareSerial mp3Serial(2);
+DFRobotDFPlayerMini player;
+
+bool playerReady = false;
+
+const int buttons[] = {
+  WATER_BUTTON,
+  FOOD_BUTTON,
+  HELP_BUTTON,
+  PAIN_BUTTON
+};
+
+const char* messages[] = {
+  "I need water",
+  "I am hungry",
+  "I need help",
+  "I am in pain"
+};
+
+bool previousState[4] = {
+  HIGH, HIGH, HIGH, HIGH
+};
+
+unsigned long lastPress[4] = {0, 0, 0, 0};
+
+void speakMessage(int index) {
+  Serial.println(messages[index]);
+
+  if (playerReady) {
+    player.play(index + 1);
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  for (int i = 0; i < 4; i++) {
+    pinMode(buttons[i], INPUT_PULLUP);
+  }
+
+  mp3Serial.begin(
+    9600,
+    SERIAL_8N1,
+    DFPLAYER_RX,
+    DFPLAYER_TX
+  );
+
+  Serial.println("Starting communication system...");
+
+  if (player.begin(mp3Serial)) {
+    playerReady = true;
+    player.volume(20);  // Volume range: 0 to 30
+    Serial.println("DFPlayer ready.");
+  } else {
+    Serial.println("DFPlayer not detected.");
+    Serial.println("Check wiring, power and SD card.");
+  }
+
+  Serial.println("Press a message button.");
+}
+
+void loop() {
+  for (int i = 0; i < 4; i++) {
+    bool currentState = digitalRead(buttons[i]);
+
+    // Detect a new button press
+    if (previousState[i] == HIGH &&
+        currentState == LOW &&
+        millis() - lastPress[i] > 250) {
+
+      lastPress[i] = millis();
+      speakMessage(i);
+    }
+
+    previousState[i] = currentState;
+  }
+}
